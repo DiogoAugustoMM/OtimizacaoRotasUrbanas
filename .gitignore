@@ -1,0 +1,24 @@
+# Ambiente Python e caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Configurações locais e credenciais
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.idea/
+.vscode/
+
+# Dados obtidos ou gerados localmente
+dados/*
+!dados/.gitkeep
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db

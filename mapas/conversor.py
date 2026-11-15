@@ -4,6 +4,8 @@ import json
 from math import atan2, cos, radians, sin, sqrt
 from pathlib import Path
 
+from grafos.grafo import Grafo
+
 
 def carregar_dados(caminho):
     with Path(caminho).open(encoding="utf-8") as arquivo:
@@ -182,6 +184,42 @@ def adicionar_distancias(arestas, pontos):
         aresta["distancia_metros"] = distancia_total
 
 
+def obter_nomes_da_aresta(aresta, vias):
+    """Retorna os nomes das vias do percurso, sem repetir nomes iguais."""
+    nomes = []
+    for segmento in aresta["segmentos"]:
+        for id_via in segmento["vias"]:
+            nome = vias[id_via]["tags"].get("name") or f"Via sem nome (OSM {id_via})"
+            if nome not in nomes:
+                nomes.append(nome)
+    return " / ".join(nomes) or "Sem via identificada"
+
+
+def montar_grafo(vertices, arestas):
+    """Preenche um Grafo não direcionado com os dados já convertidos.
+
+    Os IDs intermediários ficam nos percursos; suas coordenadas continuam
+    no dicionário pontos. As tags das vias continuam no dicionário vias.
+    """
+    grafo = Grafo()
+
+    for identificador, coordenadas in vertices.items():
+        grafo.adicionar_vertice(
+            identificador, coordenadas["latitude"], coordenadas["longitude"]
+        )
+
+    for aresta in arestas:
+        grafo.adicionar_aresta(
+            origem=aresta["origem"],
+            destino=aresta["destino"],
+            distancia_metros=aresta["distancia_metros"],
+            percurso=aresta["percurso"],
+            segmentos=aresta["segmentos"],
+        )
+
+    return grafo
+
+
 if __name__ == "__main__":
     raiz = Path(__file__).resolve().parent.parent
     caminho = raiz / "dados" / "bairro_teste.json"
@@ -194,6 +232,7 @@ if __name__ == "__main__":
     vertices = {**cruzamentos, **extremidades}
     arestas = construir_arestas(vizinhos, vertices, vias)
     adicionar_distancias(arestas, pontos)
+    grafo = montar_grafo(vertices, arestas)
 
     print(f"Total de pontos: {len(pontos)}")
 
@@ -221,7 +260,20 @@ if __name__ == "__main__":
 
     print(f"\nArestas com distancia (ainda sem sentidos): {len(arestas)}")
     for aresta in arestas[:5]:
+        nomes = obter_nomes_da_aresta(aresta, vias)
         print(
-            f"{aresta['origem']} -> {aresta['destino']}: "
+            f"{nomes} | {aresta['origem']} -> {aresta['destino']}: "
             f"{aresta['distancia_metros']:.2f} m; percurso {aresta['percurso']}"
         )
+
+    print(f"\nGrafo montado: {len(grafo.vertices)} vertices e {len(grafo.arestas)} arestas")
+    if grafo.vertices:
+        primeiro_vertice = next(iter(grafo.vertices))
+        print(f"Conexoes do vertice {primeiro_vertice}:")
+        for conexao in grafo.obter_vizinhos(primeiro_vertice):
+            aresta = grafo.arestas[conexao["id_aresta"]]
+            nomes = obter_nomes_da_aresta(aresta, vias)
+            print(
+                f"  {nomes} | destino {conexao['destino']} | "
+                f"{conexao['distancia_metros']:.2f} m | aresta {conexao['id_aresta']}"
+            )

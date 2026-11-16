@@ -1,15 +1,117 @@
-"""Leitura dos dados do OpenStreetMap para futura conversão em grafo."""
+"""Leitura, validação e conversão dos dados do OpenStreetMap em grafo."""
 
 import json
+from argparse import ArgumentParser
 from math import atan2, cos, radians, sin, sqrt
 from pathlib import Path
 
 from grafos.grafo import Grafo
+from mapas.regras_carros import filtrar_vias_carros, sentido_da_via
 
 
 def carregar_dados(caminho):
-    with Path(caminho).open(encoding="utf-8") as arquivo:
-        return json.load(arquivo)
+    """Lê um JSON da Overpass e valida os dados antes de devolvê-los.
+
+    Problemas no conteúdo geram ValueError. Falhas de acesso ao arquivo
+    continuam sendo OSError, incluindo FileNotFoundError.
+    """
+    caminho = Path(caminho)
+    try:
+        # utf-8-sig também aceita arquivos UTF-8 com marcador BOM.
+        with caminho.open(encoding="utf-8-sig") as arquivo:
+            dados = json.load(arquivo)
+    except FileNotFoundError as erro:
+        raise FileNotFoundError(f"Arquivo não encontrado: {caminho}") from erro
+    except json.JSONDecodeError as erro:
+        raise ValueError(
+            f"JSON inválido em {caminho}: linha {erro.lineno}, coluna {erro.colno}"
+        ) from erro
+    except UnicodeDecodeError as erro:
+        raise ValueError(f"O arquivo deve estar em UTF-8: {caminho}") from erro
+    except OSError as erro:
+        raise OSError(f"Não foi possível ler {caminho}: {erro}") from erro
+
+    validar_dados(dados)
+    return dados
+
+
+def validar_dados(dados):
+    """Verifica o formato e as referências sem modificar os dados recebidos.
+
+    Relações e áreas são ignoradas nesta etapa; nodes e ways são validados.
+    Esta validação não verifica se uma via permite circulação de carros.
+    """
+    if not isinstance(dados, dict):
+        raise ValueError("O JSON deve conter um objeto com a lista 'elements'")
+    if dados.get("type") in ("FeatureCollection", "Feature"):
+        raise ValueError(
+            "O arquivo é GeoJSON. Exporte os dados brutos (raw data) da Overpass, "
+            "com a lista 'elements' e os IDs dos pontos"
+        )
+    if dados.get("remark"):
+        raise ValueError(f"A Overpass informou um problema na consulta: {dados['remark']}")
+
+    elementos = dados.get("elements")
+    if not isinstance(elementos, list):
+        raise ValueError("O JSON da Overpass deve conter uma lista 'elements'")
+
+    ids_pontos = set()
+    ids_vias = set()
+    vias = []
+
+    for indice, elemento in enumerate(elementos):
+        if not isinstance(elemento, dict):
+            raise ValueError(f"O elemento na posição {indice} deve ser um objeto")
+        tipo = elemento.get("type")
+        if tipo in ("relation", "area"):
+            continue
+        if tipo not in ("node", "way"):
+            raise ValueError(f"Tipo de elemento inválido na posição {indice}: {tipo!r}")
+
+        identificador = elemento.get("id")
+        if type(identificador) is not int:
+            raise ValueError(f"O elemento na posição {indice} deve ter um ID inteiro")
+        tags = elemento.get("tags", {})
+        if not isinstance(tags, dict) or any(
+            not isinstance(chave, str) or not isinstance(valor, str)
+            for chave, valor in tags.items()
+        ):
+            raise ValueError(f"As tags de {tipo} {identificador} devem associar textos a textos")
+
+        if tipo == "node":
+            if identificador in ids_pontos:
+                raise ValueError(f"ID de ponto duplicado: {identificador}")
+            ids_pontos.add(identificador)
+            for campo, limite in (("lat", 90), ("lon", 180)):
+                valor = elemento.get(campo)
+                if type(valor) not in (int, float) or not -limite <= valor <= limite:
+                    raise ValueError(f"Coordenada '{campo}' inválida no ponto {identificador}")
+        else:
+            if identificador in ids_vias:
+                raise ValueError(f"ID de via duplicado: {identificador}")
+            ids_vias.add(identificador)
+            nodes = elemento.get("nodes")
+            if (
+                not isinstance(nodes, list)
+                or len(nodes) < 2
+                or any(type(id_ponto) is not int for id_ponto in nodes)
+            ):
+                raise ValueError(
+                    f"A via {identificador} deve ter uma lista 'nodes' com pelo menos dois IDs inteiros"
+                )
+            vias.append(elemento)
+
+    if not vias:
+        raise ValueError("O arquivo não contém vias (way) para converter")
+
+    # A ordem no JSON é livre: conferimos as referências após ler todos os pontos.
+    for via in vias:
+        for id_ponto in via["nodes"]:
+            if id_ponto not in ids_pontos:
+                raise ValueError(
+                    f"A via {via['id']} referencia o ponto ausente {id_ponto}. "
+                    "Exporte também os pontos das vias na consulta Overpass"
+                )
 
 
 def organizar_pontos(dados):
@@ -92,6 +194,20 @@ def identificar_vertices(pontos, vizinhos):
     return cruzamentos, extremidades
 
 
+def selecionar_vertices_carros(pontos, vizinhos, vias):
+    """Mantém ramificações, extremidades e limites de cada way selecionada.
+
+    Manter limites de ways preserva as mudanças de regra mesmo em pontos com
+    dois vizinhos. Em um circuito isolado, o início da way serve como âncora.
+    """
+    cruzamentos, extremidades = identificar_vertices(pontos, vizinhos)
+    vertices = {**cruzamentos, **extremidades}
+    for via in vias.values():
+        for identificador in (via["nodes"][0], via["nodes"][-1]):
+            vertices[identificador] = pontos[identificador]
+    return vertices
+
+
 def construir_arestas(vizinhos, vertices, vias):
     """Agrupa segmentos entre vértices, sem pesos ou sentidos de circulação.
 
@@ -152,6 +268,49 @@ def construir_arestas(vizinhos, vertices, vias):
     return arestas
 
 
+def direcionar_arestas(arestas, vias):
+    """Cria arcos apenas quando todos os segmentos permitem aquele sentido.
+
+    Não deduz o sentido a partir dos IDs: usa a ordem original dos nodes de
+    cada via. Mantém, em cada segmento orientado, apenas as vias compatíveis.
+    """
+    vias_por_direcao = {}
+    for id_via, via in vias.items():
+        sentido = sentido_da_via(via["tags"])
+        if sentido is None:
+            raise ValueError(f"Sentido não suportado na via {id_via}")
+        ids = via["nodes"]
+        for origem, destino in zip(ids, ids[1:]):
+            if origem == destino:
+                continue
+            if sentido in (0, 1):
+                vias_por_direcao.setdefault((origem, destino), set()).add(id_via)
+            if sentido in (0, -1):
+                vias_por_direcao.setdefault((destino, origem), set()).add(id_via)
+
+    direcionadas = []
+    for aresta in arestas:
+        for percurso in (aresta["percurso"], list(reversed(aresta["percurso"]))):
+            segmentos = []
+            for origem, destino in zip(percurso, percurso[1:]):
+                ids_vias = vias_por_direcao.get((origem, destino))
+                if not ids_vias:
+                    break
+                segmentos.append({
+                    "origem": origem,
+                    "destino": destino,
+                    "vias": sorted(ids_vias),
+                })
+            else:
+                direcionadas.append({
+                    "origem": percurso[0],
+                    "destino": percurso[-1],
+                    "percurso": list(percurso),
+                    "segmentos": segmentos,
+                })
+    return direcionadas
+
+
 def calcular_distancia_metros(ponto_a, ponto_b):
     """Estima a distância de superfície com Haversine, sem considerar altitude."""
     raio_terra_metros = 6_371_000
@@ -195,13 +354,13 @@ def obter_nomes_da_aresta(aresta, vias):
     return " / ".join(nomes) or "Sem via identificada"
 
 
-def montar_grafo(vertices, arestas):
-    """Preenche um Grafo não direcionado com os dados já convertidos.
+def montar_grafo(vertices, arestas, direcionado=False):
+    """Preenche um Grafo com os dados já convertidos.
 
     Os IDs intermediários ficam nos percursos; suas coordenadas continuam
     no dicionário pontos. As tags das vias continuam no dicionário vias.
     """
-    grafo = Grafo()
+    grafo = Grafo(direcionado=direcionado)
 
     for identificador, coordenadas in vertices.items():
         grafo.adicionar_vertice(
@@ -220,26 +379,53 @@ def montar_grafo(vertices, arestas):
     return grafo
 
 
-if __name__ == "__main__":
-    raiz = Path(__file__).resolve().parent.parent
-    caminho = raiz / "dados" / "bairro_teste.json"
+def carregar_mapa(caminho):
+    """Retorna (grafo, pontos, vias) a partir de um arquivo JSON validado.
 
+    Pontos inclui as coordenadas intermediárias dos percursos, e vias guarda
+    as tags originais. Não faz consultas à API nem imprime no terminal.
+    O grafo é direcionado e usa o perfil básico de carros particulares.
+    As vias retornadas são apenas as selecionadas para esse perfil.
+    """
     dados = carregar_dados(caminho)
     pontos = organizar_pontos(dados)
-    vias = organizar_vias(dados)
+    vias, _ = filtrar_vias_carros(organizar_vias(dados))
+    if not vias:
+        raise ValueError("Nenhuma via compatível com o perfil de carros foi encontrada")
+    vizinhos = organizar_vizinhos(vias)
+    vertices = selecionar_vertices_carros(pontos, vizinhos, vias)
+    trechos = construir_arestas(vizinhos, vertices, vias)
+    arestas = direcionar_arestas(trechos, vias)
+    adicionar_distancias(arestas, pontos)
+    grafo = montar_grafo(vertices, arestas, direcionado=True)
+    return grafo, pontos, vias
+
+
+if __name__ == "__main__":
+    raiz = Path(__file__).resolve().parent.parent
+    parser = ArgumentParser(description="Carrega um JSON da Overpass e monta o grafo inicial")
+    parser.add_argument(
+        "caminho", nargs="?", type=Path, default=raiz / "dados" / "bairro_teste.json",
+        help="Arquivo JSON da Overpass (padrão: dados/bairro_teste.json)",
+    )
+    argumentos = parser.parse_args()
+    try:
+        grafo, pontos, vias = carregar_mapa(argumentos.caminho)
+    except (OSError, ValueError) as erro:
+        raise SystemExit(f"Erro ao carregar mapa: {erro}") from None
+
+    # Reconstrói apenas as informações usadas no resumo de diagnóstico.
     vizinhos = organizar_vizinhos(vias)
     cruzamentos, extremidades = identificar_vertices(pontos, vizinhos)
-    vertices = {**cruzamentos, **extremidades}
-    arestas = construir_arestas(vizinhos, vertices, vias)
-    adicionar_distancias(arestas, pontos)
-    grafo = montar_grafo(vertices, arestas)
+    vertices = grafo.vertices
+    arestas = list(grafo.arestas.values())
 
     print(f"Total de pontos: {len(pontos)}")
 
     for identificador, coordenadas in list(pontos.items())[:5]:
         print(identificador, coordenadas)
 
-    print(f"\nTotal de vias: {len(vias)}")
+    print(f"\nVias selecionadas para carros: {len(vias)}")
 
     for identificador, via in list(vias.items())[:5]:
         nome = via["tags"].get("name", "Sem nome")
@@ -254,11 +440,12 @@ if __name__ == "__main__":
     print(f"\nCruzamentos (3 ou mais vizinhos): {len(cruzamentos)}")
     print(f"Extremidades (1 vizinho): {len(extremidades)}")
     print(f"Vertices selecionados inicialmente: {len(cruzamentos) + len(extremidades)}")
+    print(f"Vertices apos preservar limites das vias e circuitos: {len(vertices)}")
 
     for identificador, coordenadas in list(cruzamentos.items())[:5]:
         print(f"Cruzamento {identificador}: {coordenadas}")
 
-    print(f"\nArestas com distancia (ainda sem sentidos): {len(arestas)}")
+    print(f"\nArestas direcionadas para carros: {len(arestas)}")
     for aresta in arestas[:5]:
         nomes = obter_nomes_da_aresta(aresta, vias)
         print(
@@ -266,7 +453,7 @@ if __name__ == "__main__":
             f"{aresta['distancia_metros']:.2f} m; percurso {aresta['percurso']}"
         )
 
-    print(f"\nGrafo montado: {len(grafo.vertices)} vertices e {len(grafo.arestas)} arestas")
+    print(f"\nGrafo direcionado: {len(grafo.vertices)} vertices e {len(grafo.arestas)} arestas")
     if grafo.vertices:
         primeiro_vertice = next(iter(grafo.vertices))
         print(f"Conexoes do vertice {primeiro_vertice}:")

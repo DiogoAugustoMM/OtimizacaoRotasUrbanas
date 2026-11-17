@@ -4,9 +4,10 @@ Projeto acadêmico de Grafos em Python. O objetivo é obter dados geográficos
 do OpenStreetMap pela Overpass API e utilizar uma implementação própria de
 grafos para estudar rotas urbanas.
 
-Esta versão contém uma tela inicial e a conversão de um JSON local da Overpass
-em um grafo próprio direcionado para carros, com distâncias em metros. Ainda não
-realiza consultas à API, cálculo de rotas ou visualização do grafo.
+Esta versão contém a conversão de um JSON local da Overpass em um grafo próprio
+direcionado para carros, com distâncias em metros, e uma interface Streamlit para
+escolher origem e destino no mapa. Ainda não realiza consultas à API nem calcula
+rotas: a rota aparece na tela quando `grafos/dijkstra.py` for implementado.
 
 O escopo definido é de rotas para carros particulares. O conversor aplica um
 perfil básico de acesso e sentidos de circulação, com limitações descritas abaixo.
@@ -15,7 +16,7 @@ perfil básico de acesso e sentidos de circulação, com limitações descritas 
 
 - Python 3.10 ou superior.
 - Streamlit: interface da aplicação.
-- Folium: futura visualização de mapas e rotas.
+- Folium e streamlit-folium: mapa interativo, seleção de pontos e desenho da rota.
 - Requests: futuras requisições à Overpass API.
 - Pytest: testes das implementações do grupo.
 
@@ -26,9 +27,11 @@ grafos. As estruturas e os algoritmos serão implementados pelo grupo.
 
 ```text
 .
-├── app.py                  # Interface inicial do Streamlit
+├── app.py                  # Interface do Streamlit
 ├── requirements.txt        # Dependências
 ├── .gitignore              # Exclusões do controle de versão
+├── .streamlit/
+│   └── config.toml         # Tema do Streamlit
 ├── README.md
 ├── mapas/
 │   ├── __init__.py
@@ -41,12 +44,13 @@ grafos. As estruturas e os algoritmos serão implementados pelo grupo.
 │   └── dijkstra.py         # Reservado para o algoritmo de Dijkstra
 ├── visualizacao/
 │   ├── __init__.py
-│   └── mapa.py             # Reservado para a visualização com Folium
+│   └── mapa.py             # Mapa Folium, seleção de pontos e desenho da rota
 ├── testes/
 │   ├── __init__.py
 │   ├── test_grafo.py       # Testes da estrutura e integração
 │   ├── test_conversor.py   # Validação dos arquivos e carregamento completo
-│   └── test_regras_carros.py # Acesso, sentidos, rotatórias e circuitos
+│   ├── test_regras_carros.py # Acesso, sentidos, rotatórias e circuitos
+│   └── test_mapa.py        # Vértice mais próximo e coordenadas da rota
 └── dados/
     └── .gitkeep            # Mantém a pasta vazia no Git
 ```
@@ -68,6 +72,25 @@ Abra a URL informada no terminal (normalmente `http://localhost:8501`).
 Para encerrar a aplicação, pressione `Ctrl+C` no terminal.
 Os comandos usam diretamente o Python do ambiente virtual, sem necessidade
 de ativá-lo ou alterar a política de execução do PowerShell.
+
+## Usar a interface
+
+1. Coloque um JSON da Overpass (dados brutos, no formato com `elements`) em
+   `dados/`. A pasta é ignorada pelo Git, então cada pessoa precisa ter o seu mapa
+   local. No overpass-turbo.eu, use uma consulta com `[out:json]`,
+   `way["highway"];`, `out body;`, `>;` e `out skel qt;`, execute e baixe em
+   Exportar > raw OSM data.
+2. Inicie o app e escolha o arquivo na barra lateral.
+3. Clique no mapa: o primeiro clique define a origem, o segundo o destino e um
+   terceiro recomeça o trajeto. Cada clique é convertido no cruzamento mais
+   próximo do grafo, por busca linear. "Limpar trajeto" apaga os dois pontos.
+4. "Mostrar ruas do grafo" desenha as arestas em roxo. O mapa de fundo cobre
+   o mundo todo, mas o grafo só existe na área e nas vias do JSON carregado, e o
+   algoritmo enxerga apenas o grafo.
+5. A rota vem de `menor_caminho(grafo, origem, destino)`, em
+   `grafos/dijkstra.py`, que deve retornar `(ids_das_arestas, distancia_em_metros)`
+   ou `None` quando não houver caminho. Enquanto a função não existir, a tela
+   mostra só os pontos e um aviso.
 
 ## Montar o grafo local
 
@@ -111,8 +134,8 @@ circuitos isolados, um limite da way serve como vértice de referência. Depois
 constrói os percursos, verifica os sentidos permitidos em todos os segmentos,
 soma as distâncias com Haversine e chama
 `montar_grafo(vertices, arestas, direcionado=True)`. Essa função retorna uma
-instância de `Grafo`. Os resultados aparecem no terminal; o Streamlit ainda
-não está integrado à conversão.
+instância de `Grafo`. Os resultados aparecem no terminal; o Streamlit usa a
+mesma função (`carregar_mapa`) para montar o grafo.
 
 A classe mantém `vertices` (ID → coordenadas), `arestas` (ID próprio → dados)
 e `adjacencias` (vértice → lista de IDs de arestas). Seus métodos são
@@ -178,10 +201,10 @@ Execute na raiz (os testes usam dados pequenos e não dependem do JSON local):
 ## Próximas etapas
 
 1. Implementar as consultas à Overpass API em `mapas/overpass.py`.
-2. Integrar a seleção de origem e destino e a visualização do grafo para carros.
+2. Integrar o resultado do Dijkstra à interface (a rota e a distância já têm lugar na tela).
 3. Implementar o algoritmo de Dijkstra usando os IDs das arestas para preservar
    a escolha entre percursos paralelos.
-4. Desenvolver a visualização com Folium e integrá-la ao Streamlit.
+4. Exibir o tempo estimado e comparar critérios de otimização.
 5. Ampliar os testes conforme as próximas funcionalidades forem implementadas.
 
 Ao utilizar dados do OpenStreetMap na visualização, incluir a atribuição

@@ -13,10 +13,7 @@ except ImportError:  # pacote de exibição do Folium no Streamlit
     st_folium = None
 
 try:
-    # Contrato combinado com quem faz o algoritmo:
-    # menor_caminho(grafo, origem, destino) -> (ids_arestas, distancia_metros)
-    # ou None quando não existe caminho (RF10).
-    from grafos.dijkstra import menor_caminho
+    from grafos.dijkstra import calcular_menor_caminho as menor_caminho
 except ImportError:
     menor_caminho = None
 
@@ -59,6 +56,15 @@ def iniciar_estado():
 
 def formatar_distancia(metros):
     return f"{metros / 1000:.2f} km" if metros >= 1000 else f"{metros:.0f} m"
+
+def formatar_tempo(segundos):
+    minutos = round(segundos / 60)
+    if minutos < 1:
+        return f"{segundos:.0f} s"
+    if minutos < 60:
+        return f"{minutos} min"
+    horas, mins = divmod(minutos, 60)
+    return f"{horas}h {mins:02d}min"
 
 
 def dica(origem, destino):
@@ -104,10 +110,16 @@ def main() -> None:
     with st.sidebar:
         st.header("Mapa")
         arquivo = st.selectbox("Arquivo", arquivos, format_func=lambda p: p.name)
+        criterio_label = st.radio(
+            "Critério de otimização",
+            options=["Mais curta (Distância)", "Mais rápida (Tempo)"],
+            index=0,
+        )
+        criterio = "tempo" if "Tempo" in criterio_label else "distancia"
         mostrar_ruas = st.checkbox("Mostrar ruas do grafo", value=False)
 
     try:
-        grafo, pontos, _vias = carregar(str(arquivo))
+        grafo, pontos, vias = carregar(str(arquivo))
     except (OSError, ValueError) as erro:
         st.error(f"Não foi possível carregar o mapa: {erro}")
         st.stop()
@@ -123,7 +135,7 @@ def main() -> None:
     origem, destino = st.session_state.origem, st.session_state.destino
 
     # Cálculo da rota (RF05, RF07, RF10), quando o algoritmo estiver disponível.
-    ids_arestas, distancia, aviso = None, None, None
+    ids_arestas, distancia, tempo, aviso = None, None, None, None
     if origem is not None and destino is not None:
         if origem == destino:
             aviso = ("info", "Origem e destino caíram no mesmo cruzamento. "
@@ -132,11 +144,15 @@ def main() -> None:
             aviso = ("info", "A rota aparece aqui quando o algoritmo de menor "
                              "caminho (`grafos/dijkstra.py`) estiver pronto.")
         else:
-            resultado = menor_caminho(grafo, origem, destino)
+            resultado = menor_caminho(
+                grafo, origem, destino, criterio=criterio, pontos=pontos, vias=vias
+            )
             if resultado is None:
                 aviso = ("error", "Não existe caminho entre esses dois pontos.")  # RF10
             else:
-                ids_arestas, distancia = resultado
+                ids_arestas = resultado["arestas"]
+                distancia = resultado["distancia_total"]
+                tempo = resultado.get("tempo_total")
 
     col_mapa, col_painel = st.columns([4, 1], gap="medium")
 
@@ -146,11 +162,11 @@ def main() -> None:
         st.markdown(trajeto_html(grafo, origem, destino), unsafe_allow_html=True)
         if distancia is not None:
             st.metric("Distância total", formatar_distancia(distancia))  # RF07
+        if tempo is not None:
+            st.metric("Tempo estimado", formatar_tempo(tempo))
         if aviso:
             (st.error if aviso[0] == "error" else st.info)(aviso[1])
         if st.button("Limpar trajeto", disabled=origem is None):
-            # O último clique não é apagado: o mapa continua devolvendo o mesmo
-            # clique e ele seria tratado como novo.
             st.session_state.origem = None
             st.session_state.destino = None
             st.rerun()

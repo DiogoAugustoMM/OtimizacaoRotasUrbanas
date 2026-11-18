@@ -12,10 +12,7 @@ try:
 except ImportError:  # pacote de exibição do Folium no Streamlit
     st_folium = None
 
-try:
-    from grafos.dijkstra import calcular_menor_caminho as menor_caminho
-except ImportError:
-    menor_caminho = None
+from resultados import comparar_rotas
 
 PASTA_DADOS = Path(__file__).resolve().parent / "dados"
 
@@ -134,25 +131,39 @@ def main() -> None:
 
     origem, destino = st.session_state.origem, st.session_state.destino
 
-    # Cálculo da rota (RF05, RF07, RF10), quando o algoritmo estiver disponível.
-    ids_arestas, distancia, tempo, aviso = None, None, None, None
+    # Calcula e compara as rotas por distância e tempo.
+    ids_arestas, distancia, tempo, aviso, comparacao = (
+        None, None, None, None, None
+    )
+
     if origem is not None and destino is not None:
         if origem == destino:
-            aviso = ("info", "Origem e destino caíram no mesmo cruzamento. "
-                             "Escolha pontos mais afastados.")
-        elif menor_caminho is None:
-            aviso = ("info", "A rota aparece aqui quando o algoritmo de menor "
-                             "caminho (`grafos/dijkstra.py`) estiver pronto.")
-        else:
-            resultado = menor_caminho(
-                grafo, origem, destino, criterio=criterio, pontos=pontos, vias=vias
+            aviso = (
+                "info",
+                "Origem e destino caíram no mesmo cruzamento. "
+                "Escolha pontos mais afastados."
             )
-            if resultado is None:
-                aviso = ("error", "Não existe caminho entre esses dois pontos.")  # RF10
+        else:
+            comparacao = comparar_rotas(
+                grafo, origem, destino, pontos, vias
+            )
+
+            if comparacao is None:
+                aviso = (
+                    "error",
+                    "Não existe caminho entre esses dois pontos."
+                )
             else:
+                if criterio == "tempo":
+                    resultado = comparacao["rota_tempo"]
+                else:
+                    resultado = comparacao["rota_distancia"]
+
                 ids_arestas = resultado["arestas"]
                 distancia = resultado["distancia_total"]
-                tempo = resultado.get("tempo_total")
+                tempo = resultado["tempo_total"]
+
+
 
     col_mapa, col_painel = st.columns([4, 1], gap="medium")
 
@@ -164,6 +175,37 @@ def main() -> None:
             st.metric("Distância total", formatar_distancia(distancia))  # RF07
         if tempo is not None:
             st.metric("Tempo estimado", formatar_tempo(tempo))
+        if comparacao is not None:
+            with st.expander("Comparação das rotas", expanded=True):
+                rota_curta = comparacao["rota_distancia"]
+                rota_rapida = comparacao["rota_tempo"]
+
+                st.write("**Mais curta (distância)**")
+                st.write(
+                    f"{formatar_distancia(rota_curta['distancia_total'])} | "
+                    f"{formatar_tempo(rota_curta['tempo_total'])}"
+                )
+
+                st.write("**Mais rápida (tempo)**")
+                st.write(
+                    f"{formatar_distancia(rota_rapida['distancia_total'])} | "
+                    f"{formatar_tempo(rota_rapida['tempo_total'])}"
+                )
+
+                if comparacao["mesmo_trajeto"]:
+                    st.caption(
+                        "Os dois critérios recomendam o mesmo trajeto."
+                    )
+                else:
+                    distancia_extra = comparacao["distancia_adicional_metros"]
+                    tempo_economizado = comparacao["tempo_economizado_segundos"]
+
+                    st.caption(
+                        f"A rota mais rápida percorre "
+                        f"{distancia_extra:.0f} m a mais e economiza "
+                        f"{tempo_economizado:.0f} segundos."
+                    )
+
         if aviso:
             (st.error if aviso[0] == "error" else st.info)(aviso[1])
         if st.button("Limpar trajeto", disabled=origem is None):

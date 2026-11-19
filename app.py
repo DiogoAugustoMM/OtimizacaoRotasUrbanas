@@ -5,7 +5,10 @@ from pathlib import Path
 import streamlit as st
 
 from mapas.conversor import carregar_mapa
-from visualizacao.mapa import criar_mapa, vertice_mais_proximo
+from mapas.localizacao import (
+    criar_indice_segmentos, inserir_pontos_temporarios, localizar_ponto_na_via,
+)
+from visualizacao.mapa import criar_mapa, geometria_das_ruas
 
 try:
     from streamlit_folium import st_folium
@@ -42,13 +45,52 @@ h1 {font-size: 1.9rem !important; padding-bottom: .2rem;}
 
 
 @st.cache_resource(show_spinner="Convertendo o mapa em grafo...")
-def carregar(caminho):
-    return carregar_mapa(caminho)
+def carregar(caminho, versao=None):
+    # versao inclui a data de modificação e o tamanho para invalidar o cache.
+    grafo, pontos, vias = carregar_mapa(caminho)
+    return grafo, pontos, vias, criar_indice_segmentos(grafo, pontos), geometria_das_ruas(grafo, pontos)
 
 
 def iniciar_estado():
-    for chave, valor in (("origem", None), ("destino", None), ("ultimo_clique", None)):
+    for chave, valor in (
+        ("origem", None), ("destino", None), ("ultimo_clique", None),
+        ("local_origem", None), ("local_destino", None), ("preparacao", None),
+        ("comparacao", None), ("rotas_calculadas", False),
+        ("mapa_ativo", None), ("geracao_mapa", 0),
+    ):
         st.session_state.setdefault(chave, valor)
+
+
+def limpar_selecao(reiniciar_mapa=True):
+    for chave in (
+        "origem", "destino", "ultimo_clique", "local_origem", "local_destino",
+        "preparacao", "comparacao",
+    ):
+        st.session_state[chave] = None
+    st.session_state.rotas_calculadas = False
+    # Uma chave nova evita que o componente devolva cliques da seleção anterior.
+    if reiniciar_mapa:
+        st.session_state.geracao_mapa += 1
+
+
+def registrar_clique(grafo_base, pontos_base, indice, clique):
+    local = localizar_ponto_na_via(indice, pontos_base, clique["lat"], clique["lng"])
+    if st.session_state.local_origem is None or st.session_state.local_destino is not None:
+        limpar_selecao(reiniciar_mapa=False)
+        st.session_state.local_origem = local
+    else:
+        st.session_state.local_destino = local
+
+    locais = [st.session_state.local_origem]
+    if st.session_state.local_destino is not None:
+        locais.append(st.session_state.local_destino)
+    grafo, pontos, ids = inserir_pontos_temporarios(grafo_base, pontos_base, locais)
+    st.session_state.preparacao = (grafo, pontos)
+    st.session_state.origem = ids[0]
+    st.session_state.destino = ids[1] if len(ids) > 1 else None
+    st.session_state.ultimo_clique = clique
+    st.session_state.comparacao = None
+    st.session_state.rotas_calculadas = False
 
 
 def formatar_distancia(metros):
@@ -80,7 +122,7 @@ def trajeto_html(grafo, origem, destino):
         c = grafo.vertices[vertice]
         return (f'<div class="ponto"><span class="marca {classe}"></span><div>'
                 f'<div class="nome">{titulo}</div>'
-                f'<div class="detalhe">Cruzamento {vertice} em '
+                f'<div class="detalhe">Ponto na via em '
                 f'{c["latitude"]:.5f}, {c["longitude"]:.5f}</div></div></div>')
 
     pronto = "pronto" if origem is not None and destino is not None else ""
@@ -116,13 +158,21 @@ def main() -> None:
         mostrar_ruas = st.checkbox("Mostrar ruas do grafo", value=False)
 
     try:
-        grafo, pontos, vias = carregar(str(arquivo))
+        dados_arquivo = arquivo.stat()
+        versao = (dados_arquivo.st_mtime_ns, dados_arquivo.st_size)
+        grafo_base, pontos_base, vias, indice, geometria_ruas = carregar(str(arquivo), versao)
     except (OSError, ValueError) as erro:
         st.error(f"Não foi possível carregar o mapa: {erro}")
         st.stop()
 
-    st.sidebar.caption(f"{len(grafo.vertices)} cruzamentos e "
-                       f"{len(grafo.arestas)} trechos de rua no grafo.")
+    assinatura = (str(arquivo), versao)
+    if st.session_state.mapa_ativo != assinatura:
+        limpar_selecao()
+        st.session_state.mapa_ativo = assinatura
+
+    grafo, pontos = st.session_state.preparacao or (grafo_base, pontos_base)
+    st.sidebar.caption(f"{len(grafo_base.vertices)} vértices e "
+                       f"{len(grafo_base.arestas)} conexões direcionadas no mapa base.")
 
     if st_folium is None:
         st.error("Falta o pacote `streamlit-folium`. Rode "
@@ -140,13 +190,16 @@ def main() -> None:
         if origem == destino:
             aviso = (
                 "info",
-                "Origem e destino caíram no mesmo cruzamento. "
+                "Origem e destino caíram no mesmo ponto da via. "
                 "Escolha pontos mais afastados."
             )
         else:
-            comparacao = comparar_rotas(
-                grafo, origem, destino, pontos, vias
-            )
+            if not st.session_state.rotas_calculadas:
+                st.session_state.comparacao = comparar_rotas(
+                    grafo, origem, destino, pontos, vias
+                )
+                st.session_state.rotas_calculadas = True
+            comparacao = st.session_state.comparacao
 
             if comparacao is None:
                 aviso = (
@@ -171,6 +224,10 @@ def main() -> None:
         st.subheader("Trajeto")
         st.markdown(f'<p class="dica">{dica(origem, destino)}</p>', unsafe_allow_html=True)
         st.markdown(trajeto_html(grafo, origem, destino), unsafe_allow_html=True)
+        for rotulo, local in (("Origem", st.session_state.local_origem),
+                              ("Destino", st.session_state.local_destino)):
+            if local is not None and local["distancia_clique_metros"] >= 1:
+                st.caption(f"{rotulo}: ajuste de {local['distancia_clique_metros']:.0f} m até a via.")
         if distancia is not None:
             st.metric("Distância total", formatar_distancia(distancia))  # RF07
         if tempo is not None:
@@ -208,26 +265,19 @@ def main() -> None:
 
         if aviso:
             (st.error if aviso[0] == "error" else st.info)(aviso[1])
-        if st.button("Limpar trajeto", disabled=origem is None):
-            st.session_state.origem = None
-            st.session_state.destino = None
-            st.rerun()
+        st.button("Limpar trajeto", disabled=origem is None, on_click=limpar_selecao)
 
     with col_mapa:
-        mapa = criar_mapa(grafo, pontos, ids_arestas, origem, destino, mostrar_ruas)
+        mapa = criar_mapa(
+            grafo, pontos, ids_arestas, origem, destino, mostrar_ruas,
+            geometria_ruas=geometria_ruas,
+        )
         retorno = st_folium(mapa, height=720, use_container_width=True,
-                            returned_objects=["last_clicked"], key="mapa")
+                            returned_objects=["last_clicked"], key=f"mapa_{st.session_state.geracao_mapa}")
 
     clique = (retorno or {}).get("last_clicked")
     if clique and clique != st.session_state.ultimo_clique:
-        st.session_state.ultimo_clique = clique
-        vertice = vertice_mais_proximo(grafo, clique["lat"], clique["lng"])
-        if origem is None or destino is not None:
-            # 1º clique, ou um clique novo com o trajeto já completo: recomeça.
-            st.session_state.origem = vertice
-            st.session_state.destino = None
-        else:
-            st.session_state.destino = vertice
+        registrar_clique(grafo_base, pontos_base, indice, clique)
         st.rerun()
 
 

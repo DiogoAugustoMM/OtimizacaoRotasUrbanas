@@ -41,6 +41,7 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 │   ├── __init__.py
 │   ├── overpass.py             # Reservado para futuras consultas à Overpass API
 │   ├── regras_carros.py       # Filtro de acesso e interpretação dos sentidos
+│   ├── localizacao.py         # Cliques sobre vias e vértices temporários
 │   └── conversor.py           # Leitura do JSON e montagem do grafo
 ├── grafos/
 │   ├── __init__.py
@@ -52,6 +53,8 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 ├── testes/
 │   ├── __init__.py
 │   ├── test_conversor.py      # Validação dos arquivos e carregamento
+│   ├── test_localizacao.py    # Seleção e divisão de trechos para uma consulta
+│   ├── test_app.py            # Estado da interface com cliques simulados
 │   ├── test_dijkstra.py       # Caminhos por distância e tempo e casos especiais
 │   ├── test_grafo.py          # Estrutura e conexões do grafo
 │   ├── test_mapa.py           # Seleção de vértices e coordenadas da rota
@@ -98,13 +101,61 @@ Como os JSONs de `dados/` não são versionados, cada integrante precisa salvar 
 ## Usar a interface
 
 1. Inicie a aplicação e selecione o arquivo JSON na barra lateral.
-2. Clique no mapa para definir a **origem** e depois o **destino**. Os cliques são associados ao vértice mais próximo do grafo, por busca linear. Um novo clique após definir os dois pontos inicia outro trajeto; o botão **Limpar trajeto** remove a seleção.
+2. Clique no mapa para definir a **origem** e depois o **destino**. Cada clique é projetado sobre o segmento de via mais próximo, incluindo o meio de ruas longas. Os pontos selecionados viram vértices temporários em uma cópia para a consulta. Um novo clique após definir os dois pontos inicia outro trajeto; o botão **Limpar trajeto** remove a seleção.
 3. Escolha o critério **Mais curta (Distância)** ou **Mais rápida (Tempo)**. A rota selecionada aparece em azul.
 4. Consulte, no painel **Trajeto**, a distância total e o tempo estimado da rota selecionada.
 5. Na seção **Comparação das rotas**, confira distância e tempo das duas alternativas. Se os trajetos forem diferentes, o sistema informa quantos metros a mais a rota rápida percorre e quantos segundos ela economiza; se forem iguais, informa que ambos os critérios recomendam o mesmo trajeto.
-6. A opção **Mostrar ruas do grafo** desenha as arestas em roxo. O mapa de fundo pode mostrar ruas fora do grafo; o cálculo considera somente as vias representadas no JSON carregado.
+6. A opção **Mostrar ruas do grafo** desenha os percursos em roxo, agrupados em uma camada GeoJSON, sem duplicar ida e volta. O mapa de fundo pode mostrar ruas fora do grafo; o cálculo considera somente as vias representadas no JSON carregado.
 
-Quando não existe caminho dirigido entre origem e destino, a interface informa a situação e não apresenta uma comparação de rotas inexistentes. Quando os dois cliques correspondem ao mesmo vértice, a interface solicita pontos mais afastados.
+Quando não existe caminho dirigido entre origem e destino, a interface informa a situação e não apresenta uma comparação de rotas inexistentes. Quando os dois cliques correspondem ao mesmo ponto da via, a interface solicita pontos mais afastados. O deslocamento entre clique e via é informado no painel; ele não faz parte da distância da rota de carro.
+
+A troca de arquivo limpa a seleção. Alterações no mesmo arquivo invalidam o cache
+por data de modificação e tamanho. A cópia para a consulta é preparada somente
+quando os pontos mudam; alternar o critério ou a exibição das ruas reutiliza as
+rotas já calculadas. A geometria da camada de ruas e o índice de segmentos também
+são preparados uma vez por versão do mapa.
+
+## Seleção no meio das ruas
+
+O módulo `mapas/localizacao.py` preserva o formato esperado por Dijkstra e pela
+comparação. Não altera o JSON nem o grafo base compartilhado em cache.
+
+```python
+from mapas.localizacao import (
+    criar_indice_segmentos, localizar_ponto_na_via, inserir_pontos_temporarios,
+)
+
+indice = criar_indice_segmentos(grafo, pontos)
+local_origem = localizar_ponto_na_via(indice, pontos, latitude_origem, longitude_origem)
+local_destino = localizar_ponto_na_via(indice, pontos, latitude_destino, longitude_destino)
+grafo_consulta, pontos_consulta, ids = inserir_pontos_temporarios(
+    grafo, pontos, [local_origem, local_destino]
+)
+origem, destino = ids
+# Use grafo_consulta e pontos_consulta, junto com vias, nos cálculos existentes.
+```
+
+O índice guarda segmentos físicos sem duplicar os sentidos. A busca linear usa
+uma projeção plana local aproximada para encontrar a posição ao longo do segmento,
+adequada à escala urbana. O ajuste respeita a geometria de cada rua; não projeta
+somente sobre a linha reta entre os cruzamentos.
+
+Os dois pontos são inseridos simultaneamente, ordenados ao longo dos segmentos.
+Se ambos estiverem na mesma aresta, o trecho entre eles é criado diretamente.
+Se a projeção coincidir com um ponto OSM existente, seu ID é reutilizado e, quando
+necessário, ele é promovido a vértice. Novos pontos recebem IDs negativos sem
+colisão. Coincidências a até 1 cm são tratadas como o mesmo ponto.
+
+As conexões afetadas são substituídas por trechos menores. Mãos únicas continuam
+em um sentido; os dois sentidos de uma rua de mão dupla são divididos juntos.
+Pesos são recalculados com Haversine e as referências às vias são preservadas
+em cada segmento, mantendo o cálculo de tempo existente. Pontes e ruas que só se
+cruzam visualmente não são unidas, pois a divisão usa os IDs dos segmentos.
+
+As estruturas principais do grafo são copiadas, mas os registros não alterados
+são reutilizados para leitura; apenas adjacências e arestas afetadas são refeitas.
+Os algoritmos consumidores devem tratar os registros do grafo como dados de leitura.
+Detalhes para a apresentação estão em [docs/localizacao.md](docs/localizacao.md).
 
 ## Montar o grafo local
 
@@ -174,6 +225,10 @@ Referências das tags: [oneway](https://wiki.openstreetmap.org/wiki/Key:oneway),
 - O perfil básico para carros não processa relações de restrição de conversão, barreiras ou restrições em nós, faixas, condições temporais, dimensões do veículo ou todas as regras legais locais implícitas.
 - A área exportada pode conter limites artificiais e componentes sem conexão; uma extremidade do grafo pode representar apenas o limite dos dados. O sistema só encontra caminhos existentes e permitidos dentro do grafo carregado.
 - Os resultados dependem da qualidade e da completude dos dados e das tags do OpenStreetMap.
+- A seleção considera a proximidade geométrica, sem conhecer o endereço, o lado
+  de acesso de um prédio ou a intenção do motorista. Em pistas paralelas, viadutos
+  e trechos sobrepostos, confira a posição do marcador. A projeção local não é
+  destinada a consultas em escala continental ou nas regiões polares.
 
 ## Testes
 

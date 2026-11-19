@@ -1,0 +1,4 @@
+﻿mapa,vertices,arestas,segmentos_fisicos,pares_avaliados,carregamento_ms,indice_ms,localizacao_clique_ms,vertices_temporarios_ms,dijkstra_distancia_ms,dijkstra_tempo_ms,comparacao_ms
+bairro_teste.json,117,220,335,2,16.030900,1.037200,0.502300,1.099801,3.559800,2.933150,7.810650
+bh_completo.json,36441,89799,115779,2,7186.136200,566.668401,142.473100,417.959200,1204.906500,976.762700,1922.213300
+bh_teste.json,360,582,1122,2,77.866199,5.721400,4.020100,2.958501,10.876850,10.137450,17.309000

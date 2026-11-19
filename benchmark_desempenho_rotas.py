@@ -1,11 +1,4 @@
-"""Mede o desempenho do projeto sem alterar os seus módulos.
-
-Copie este arquivo para a raiz do repositório e execute no PowerShell:
-    .\\.venv\\Scripts\\python.exe benchmark_desempenho_rotas_leve.py
-
-As medições usam arquivos JSON já existentes em dados/. Os resultados serão
-exibidos no terminal e registrados em dados/resultados_desempenho_leve.csv.
-"""
+"""Mede o desempenho do projeto sem alterar os seus módulos."""
 
 from collections import deque
 from csv import DictWriter

@@ -7,6 +7,7 @@ from visualizacao.mapa import (
     coordenadas_da_rota,
     coordenadas_do_percurso,
     criar_mapa,
+    geometria_das_ruas,
     limites_do_grafo,
     vertice_mais_proximo,
 )
@@ -85,3 +86,21 @@ def test_criar_mapa_com_rota_origem_e_destino_nao_falha():
     mapa = criar_mapa(grafo, pontos, [primeira, segunda], origem=1, destino=3,
                       mostrar_ruas=True)
     assert isinstance(mapa, folium.Map)
+
+
+def test_geometria_agrupa_ruas_sem_duplicar_ida_e_volta():
+    grafo, pontos, _, _ = criar_cenario()
+    grafo.adicionar_aresta(2, 1, 1100, percurso=[2, 99, 1])
+    geometria = geometria_das_ruas(grafo, pontos)
+    assert geometria["type"] == "MultiLineString"
+    assert len(geometria["coordinates"]) == 2
+    # GeoJSON utiliza longitude antes de latitude.
+    assert geometria["coordinates"][0][0] == [-43.940, -19.920]
+
+
+def test_mostrar_ruas_usa_uma_camada_agrupada():
+    folium = pytest.importorskip("folium")
+    grafo, pontos, _, _ = criar_cenario()
+    geometria = geometria_das_ruas(grafo, pontos)
+    mapa = criar_mapa(grafo, pontos, mostrar_ruas=True, geometria_ruas=geometria)
+    assert sum(isinstance(c, folium.GeoJson) for c in mapa._children.values()) == 1

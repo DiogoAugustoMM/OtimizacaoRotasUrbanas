@@ -4,22 +4,6 @@ Este módulo só desenha: não cria nem processa grafos. Ele usa o grafo, os
 pontos e as arestas que já vêm de mapas.conversor.carregar_mapa.
 """
 
-from mapas.conversor import calcular_distancia_metros
-
-
-def vertice_mais_proximo(grafo, latitude, longitude):
-    """Retorna o ID do vértice mais próximo de uma coordenada (busca linear).
-
-    Usado para transformar o clique do usuário no mapa em origem/destino.
-    """
-    if not grafo.vertices:
-        raise ValueError("O grafo não possui vértices")
-    ponto = {"latitude": latitude, "longitude": longitude}
-    return min(
-        grafo.vertices,
-        key=lambda v: calcular_distancia_metros(grafo.vertices[v], ponto),
-    )
-
 
 def coordenadas_do_percurso(pontos, percurso):
     """Converte uma lista de IDs de pontos em pares (latitude, longitude)."""

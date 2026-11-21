@@ -1,4 +1,4 @@
-"""Verifica a tradução entre cliques, grafo e coordenadas usada pela interface."""
+"""Verifica a tradução entre o grafo e coordenadas usada pela interface."""
 
 import pytest
 
@@ -9,7 +9,6 @@ from visualizacao.mapa import (
     criar_mapa,
     geometria_das_ruas,
     limites_do_grafo,
-    vertice_mais_proximo,
 )
 
 
@@ -31,23 +30,6 @@ def criar_cenario():
     primeira = grafo.adicionar_aresta(1, 2, 1100, percurso=[1, 99, 2])
     segunda = grafo.adicionar_aresta(2, 3, 1045, percurso=[2, 3])
     return grafo, pontos, primeira, segunda
-
-
-def test_clique_vira_o_vertice_mais_proximo():
-    grafo, _, _, _ = criar_cenario()
-    assert vertice_mais_proximo(grafo, -19.9201, -43.9399) == 1
-    assert vertice_mais_proximo(grafo, -19.9199, -43.9201) == 3
-    assert vertice_mais_proximo(grafo, -19.920, -43.930) == 2
-
-
-def test_clique_longe_do_grafo_ainda_escolhe_o_vertice_mais_proximo():
-    grafo, _, _, _ = criar_cenario()
-    assert vertice_mais_proximo(grafo, -10.0, -43.941) == 1
-
-
-def test_grafo_sem_vertices_nao_tem_vertice_mais_proximo():
-    with pytest.raises(ValueError):
-        vertice_mais_proximo(Grafo(), -19.9, -43.9)
 
 
 def test_percurso_vira_pares_de_latitude_e_longitude():

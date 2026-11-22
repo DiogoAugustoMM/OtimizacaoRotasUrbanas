@@ -13,7 +13,7 @@ from mapas.localizacao import (
 from resultados import comparar_rotas
 from visualizacao.mapa import coordenadas_da_rota
 
-
+ 
 def adicionar_trecho(grafo, pontos, percurso, id_via=10):
     segmentos = [{"origem": a, "destino": b, "vias": [id_via]}
                  for a, b in zip(percurso, percurso[1:])]

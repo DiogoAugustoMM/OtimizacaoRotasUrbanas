@@ -6,10 +6,6 @@ from math import isfinite
 
 class Grafo:
     """Armazena vértices, arestas e listas de adjacência.
-
-    Por padrão, cada aresta pode ser percorrida nos dois sentidos.
-    Com direcionado=True, só permite ir da origem para o destino.
-    Isso não interpreta automaticamente as regras do OpenStreetMap.
     """
 
     def __init__(self, direcionado=False):
@@ -34,7 +30,6 @@ class Grafo:
         self, origem, destino, distancia_metros, percurso=None, segmentos=None
     ):
         """Registra uma aresta e retorna seu ID, gerado pelo próprio grafo.
-
         O percurso guarda IDs de pontos, inclusive intermediários que não
         são vértices. Os segmentos preservam as referências às vias de origem.
         """
@@ -65,7 +60,6 @@ class Grafo:
 
     def obter_vizinhos(self, identificador):
         """Retorna uma lista de conexões, preservando alternativas paralelas.
-
         Cada conexão contém destino, distancia_metros e id_aresta.
         No grafo não direcionado, o destino consultado é o outro extremo.
         O percurso armazenado mantém a orientação original da aresta.

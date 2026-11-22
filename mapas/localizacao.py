@@ -1,8 +1,4 @@
 """Associa cliques às ruas e prepara vértices temporários para uma consulta.
-
-Não altera o grafo em cache. Usa uma projeção plana local aproximada, adequada
-à escala urbana, para encontrar o ponto mais próximo sobre os segmentos.
-As distâncias das novas arestas continuam sendo calculadas com Haversine.
 """
 
 from copy import copy
@@ -11,14 +7,12 @@ from math import cos, isfinite, pi, radians
 from mapas.conversor import calcular_distancia_metros
 
 
+
 TOLERANCIA_METROS = 0.01
 
 
 def criar_indice_segmentos(grafo, pontos):
     """Prepara uma lista de segmentos físicos, sem duplicar ida e volta.
-
-    A busca ainda é linear, mas as coordenadas projetadas são calculadas uma
-    única vez. IDs distintos não são unidos apenas por terem coordenadas iguais.
     """
     if not grafo.vertices or not grafo.arestas:
         raise ValueError("O grafo não possui trechos para selecionar pontos")
@@ -56,9 +50,6 @@ def criar_indice_segmentos(grafo, pontos):
 
 def localizar_ponto_na_via(indice, pontos, latitude, longitude):
     """Projeta um clique no segmento mais próximo e retorna sua localização.
-
-    fracao vai de 0 a 1 na ordem dos IDs de segmento. id_ponto identifica um
-    ponto OSM existente quando a projeção cai numa extremidade do segmento.
     """
     for valor, limite in ((latitude, 90), (longitude, 180)):
         if type(valor) not in (int, float) or not isfinite(valor) or not -limite <= valor <= limite:
@@ -108,14 +99,6 @@ def localizar_ponto_na_via(indice, pontos, latitude, longitude):
 
 def inserir_pontos_temporarios(grafo, pontos, localizacoes):
     """Retorna (grafo_consulta, pontos_consulta, ids_selecionados).
-
-    Divide simultaneamente origem e destino, inclusive se estão na mesma
-    aresta. Atualiza todas as conexões sobre o segmento escolhido, preservando
-    os sentidos existentes e as vias de cada pedaço. Não conecta linhas que
-    apenas se cruzam no desenho sem compartilhar IDs.
-
-    Copia os dicionários principais e somente as adjacências afetadas. Registros
-    não alterados são compartilhados para leitura; o grafo original não é modificado.
     """
     novos_pontos = {}
     insercoes = {}

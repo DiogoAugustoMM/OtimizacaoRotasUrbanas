@@ -11,9 +11,6 @@ from mapas.regras_carros import filtrar_vias_carros, sentido_da_via
 
 def carregar_dados(caminho):
     """Lê um JSON da Overpass e valida os dados antes de devolvê-los.
-
-    Problemas no conteúdo geram ValueError. Falhas de acesso ao arquivo
-    continuam sendo OSError, incluindo FileNotFoundError.
     """
     caminho = Path(caminho)
     try:
@@ -37,9 +34,6 @@ def carregar_dados(caminho):
 
 def validar_dados(dados):
     """Verifica o formato e as referências sem modificar os dados recebidos.
-
-    Relações e áreas são ignoradas nesta etapa; nodes e ways são validados.
-    Esta validação não verifica se uma via permite circulação de carros.
     """
     if not isinstance(dados, dict):
         raise ValueError("O JSON deve conter um objeto com a lista 'elements'")
@@ -147,8 +141,6 @@ def organizar_vias(dados):
 def organizar_vizinhos(vias):
     """Mapeia conexões entre pontos, sem considerar sentidos de circulação.
 
-    Cada chave é um ID de ponto e cada valor é um conjunto de IDs vizinhos.
-    Apenas os pontos presentes nas vias são incluídos.
     """
     vizinhos = {}
 
@@ -196,9 +188,6 @@ def identificar_vertices(pontos, vizinhos):
 
 def selecionar_vertices_carros(pontos, vizinhos, vias):
     """Mantém ramificações, extremidades e limites de cada way selecionada.
-
-    Manter limites de ways preserva as mudanças de regra mesmo em pontos com
-    dois vizinhos. Em um circuito isolado, o início da way serve como âncora.
     """
     cruzamentos, extremidades = identificar_vertices(pontos, vizinhos)
     vertices = {**cruzamentos, **extremidades}

@@ -15,9 +15,12 @@ htmlcov/
 .idea/
 .vscode/
 
-# Dados obtidos ou gerados localmente
+# Dados locais e resultados gerados (exceto mapas selecionados para a entrega)
 dados/*
 !dados/.gitkeep
+!dados/bh.json
+!dados/mg.json
+!dados/pedro_leopoldo.json
 
 # Arquivos do sistema
 .DS_Store

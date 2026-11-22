@@ -4,11 +4,15 @@ Projeto acadêmico de Teoria dos Grafos desenvolvido em Python. A aplicação ut
 
 A versão atual carrega arquivos JSON locais exportados da Overpass, considera o sentido de circulação das vias e utiliza uma implementação própria do algoritmo de Dijkstra para encontrar a rota de menor distância e a rota de menor tempo estimado. A interface permite escolher origem e destino no mapa, visualizar o trajeto selecionado e comparar os resultados dos dois critérios.
 
-**Importante:** a consulta automática à Overpass API não foi implementada. Os arquivos de mapa precisam ser obtidos e salvos localmente na pasta `dados/`.
+**Importante:** a consulta automática à Overpass API não foi implementada. Para
+a avaliação, o grupo vai disponibilizar mapas JSON já preparados de Belo Horizonte,
+Minas Gerais e Pedro Leopoldo em `dados/`. Com os arquivos da entrega, o professor
+poderá selecionar um mapa na interface sem precisar consultar a Overpass ou
+exportar dados manualmente.
 
 ## Tecnologias
 
-- Python 3.10 ou superior.
+- Python 3.11 ou superior. Ambiente verificado com Python 3.13.7.
 - Streamlit: interface da aplicação.
 - Folium e streamlit-folium: mapa interativo, seleção de pontos e desenho da rota.
 - Requests: dependência prevista para futuras consultas à Overpass API.
@@ -32,6 +36,7 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 .
 ├── app.py                     # Interface Streamlit e exibição dos resultados
 ├── resultados.py              # Cálculo e organização da comparação entre rotas
+├── benchmark_desempenho_rotas.py # Medições locais de desempenho
 ├── requirements.txt           # Dependências
 ├── .gitignore                 # Exclusões do controle de versão
 ├── .streamlit/
@@ -39,13 +44,12 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 ├── README.md
 ├── mapas/
 │   ├── __init__.py
-│   ├── overpass.py             # Reservado para futuras consultas à Overpass API
 │   ├── regras_carros.py       # Filtro de acesso e interpretação dos sentidos
 │   ├── localizacao.py         # Cliques sobre vias e vértices temporários
 │   └── conversor.py           # Leitura do JSON e montagem do grafo
 ├── grafos/
 │   ├── __init__.py
-│   ├── grafo.py                # Classe Grafo, com pesos e arestas paralelas
+│   ├── grafo.py               # Classe Grafo, com pesos e arestas paralelas
 │   └── dijkstra.py            # Menor caminho por distância ou tempo
 ├── visualizacao/
 │   ├── __init__.py
@@ -60,27 +64,110 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 │   ├── test_mapa.py           # Seleção de vértices e coordenadas da rota
 │   ├── test_regras_carros.py  # Acesso, sentidos, rotatórias e circuitos
 │   └── test_resultados.py     # Comparação de rotas
+├── docs/
+│   ├── localizacao.md         # Explicação da seleção e dos pontos temporários
+│   └── resultados_desempenho.csv # Registro de medições anteriores
 └── dados/
     └── .gitkeep               # Mantém a pasta vazia no Git
 ```
 
-`dados/` é uma pasta de armazenamento, não um pacote Python; por isso não precisa de `__init__.py`. Os mapas locais são ignorados pelo Git conforme o `.gitignore` atual.
+`dados/` é uma pasta de armazenamento, não um pacote Python; por isso não precisa
+de `__init__.py`. O `.gitignore` permite versionar os três nomes de mapas definidos
+abaixo. Outros dados locais e resultados gerados continuam ignorados.
+
+## Mapas de teste da entrega
+
+Os arquivos preparados pelo grupo deverão acompanhar o projeto com estes nomes:
+
+| Arquivo | Região |
+|---|---|
+| `dados/bh.json` | Belo Horizonte |
+| `dados/mg.json` | Minas Gerais |
+| `dados/pedro_leopoldo.json` | Pedro Leopoldo |
+
+A cobertura efetiva de cada mapa será a do recorte exportado pelo grupo. O nome
+do arquivo não garante que todos os municípios ou todas as vias da região estejam
+incluídos. Todos devem estar no formato JSON bruto da Overpass, com `elements`,
+`node` e `way`, incluindo os pontos referenciados pelas vias.
+
+Antes da entrega, o grupo deve adicionar os três arquivos a `dados/` e incluí-los
+no repositório ou no pacote enviado ao professor. As exceções no `.gitignore`
+apenas permitem sua inclusão; não criam nem baixam os mapas.
 
 ## Executar no Windows (PowerShell)
 
-No terminal do VS Code, na pasta raiz do projeto:
+Abra a pasta do projeto no VS Code e use **Terminal → Novo Terminal**. Execute
+os comandos abaixo no **PowerShell**, na pasta que contém `app.py` e
+`requirements.txt`, e não no interpretador Python (`>>>`).
+
+É necessário ter Python instalado. Confira a versão:
+
+```powershell
+python --version
+```
+
+Se `python` não for reconhecido, tente `py --version` e use `py` no lugar de
+`python` no comando de criação do ambiente abaixo. Se nenhum for encontrado,
+instale Python e configure seu acesso pelo terminal antes de continuar.
+
+### 1. Preparar o ambiente e as dependências
+
+Somente na primeira configuração, caso `.venv/` ainda não exista:
 
 ```powershell
 python -m venv .venv
+```
+
+Instale as dependências do projeto:
+
+```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+O `requirements.txt` inclui `streamlit-folium`, necessário para os cliques no
+mapa. Os comandos utilizam diretamente o Python do ambiente virtual, sem precisar
+ativá-lo ou alterar a política de execução do PowerShell.
+
+Internet é necessária para baixar dependências, acessar o Overpass Turbo e
+carregar as imagens e os recursos do mapa no navegador. A leitura do JSON e os
+cálculos de grafo são locais.
+
+### 2. Conferir os mapas fornecidos
+
+Confirme que os arquivos `bh.json`, `mg.json` e `pedro_leopoldo.json` estão em
+`dados/`, junto com a entrega do grupo. Eles aparecerão automaticamente no seletor
+**Arquivo** da barra lateral. Não é necessário exportar um novo mapa para testar
+esses arquivos.
+
+Se os três mapas estiverem ausentes, obtenha-os com o grupo ou siga a seção de
+exportação opcional abaixo para preparar outro JSON. O aplicativo só consegue
+usar os arquivos que realmente estiverem salvos em `dados/`.
+
+### 3. Iniciar a interface
+
+Com os JSONs da entrega em `dados/`, execute:
+
+```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Abra o endereço informado no terminal (normalmente `http://localhost:8501`). Para encerrar a aplicação, pressione `Ctrl+C` no terminal.
+Abra o endereço informado no terminal (normalmente `http://localhost:8501`).
+Mantenha o terminal aberto enquanto usa o sistema. Para encerrar, pressione
+`Ctrl+C` no terminal. Não execute `python app.py`: a interface deve ser iniciada
+pelo comando `streamlit run`.
 
-Os comandos utilizam diretamente o Python do ambiente virtual, sem precisar ativá-lo ou alterar a política de execução do PowerShell.
+Selecione o mapa desejado em **Arquivo**. Para o primeiro teste, prefira o menor
+arquivo disponibilizado: o custo de carregar e desenhar a rede aumenta com a
+quantidade de vias. Uma seleção em Belo Horizonte não permite calcular uma rota
+até outra cidade se as conexões necessárias estiverem fora desse JSON.
 
-### Obter um mapa para teste
+Nas próximas execuções, com o ambiente e os mapas já preparados, basta repetir
+o comando acima. Se as dependências mudarem, repita também a instalação.
+
+### Opcional: exportar outro mapa
+
+Esta etapa é somente para adicionar novos recortes ou substituir um dos mapas
+da entrega. Não faz parte do procedimento normal de teste do professor.
 
 1. Acesse [Overpass Turbo](https://overpass-turbo.eu/) e selecione uma região no mapa.
 2. Utilize uma consulta para vias no retângulo visível, por exemplo:
@@ -96,7 +183,23 @@ Os comandos utilizam diretamente o Python do ambiente virtual, sem precisar ativ
 3. Execute a consulta e, em **Export**, baixe os dados brutos (*raw OSM data*) em JSON, não GeoJSON.
 4. Salve o arquivo na pasta `dados/`, por exemplo `dados/bairro_teste.json`.
 
-Como os JSONs de `dados/` não são versionados, cada integrante precisa salvar um arquivo local para utilizar a interface.
+O nome de um mapa adicional pode ser escolhido livremente, desde que termine em
+`.json`. Para incluí-lo pelo Git, adicione também uma exceção específica no
+`.gitignore`; os três nomes da entrega já estão liberados.
+
+### Problemas comuns ao iniciar
+
+- **Nenhum mapa encontrado:** confira se os JSONs fornecidos pelo grupo foram
+  incluídos na entrega e estão em `dados/`. A interface não faz download automático.
+- **Arquivo é GeoJSON ou pontos ausentes:** refaça a exportação com a consulta
+  acima e escolha os dados brutos da resposta, preservando `elements` e `nodes`.
+- **Módulo não encontrado ou falta `streamlit-folium`:** execute novamente a
+  instalação usando `.\.venv\Scripts\python.exe`, no mesmo ambiente do aplicativo.
+- **Porta 8501 ocupada:** use outra porta e abra a URL correspondente:
+
+  ```powershell
+  .\.venv\Scripts\python.exe -m streamlit run app.py --server.port=8502
+  ```
 
 ## Usar a interface
 
@@ -121,9 +224,15 @@ O módulo `mapas/localizacao.py` preserva o formato esperado por Dijkstra e pela
 comparação. Não altera o JSON nem o grafo base compartilhado em cache.
 
 ```python
+from mapas.conversor import carregar_mapa
 from mapas.localizacao import (
     criar_indice_segmentos, localizar_ponto_na_via, inserir_pontos_temporarios,
 )
+
+grafo, pontos, vias = carregar_mapa("dados/bh.json")
+# Coordenadas de exemplo; substitua pelas coordenadas dos cliques do usuário.
+latitude_origem, longitude_origem = -19.8333445, -43.9876365
+latitude_destino, longitude_destino = -19.8328546, -43.9829954
 
 indice = criar_indice_segmentos(grafo, pontos)
 local_origem = localizar_ponto_na_via(indice, pontos, latitude_origem, longitude_origem)
@@ -159,17 +268,23 @@ Detalhes para a apresentação estão em [docs/localizacao.md](docs/localizacao.
 
 ## Montar o grafo local
 
-O arquivo de entrada deve ser um JSON bruto da Overpass com `elements`, nós (`node`) com coordenadas e vias (`way`) com listas `nodes`. Para processar `dados/bairro_teste.json` pelo terminal:
+O arquivo de entrada deve ser um JSON bruto da Overpass com `elements`, nós
+(`node`) com coordenadas e vias (`way`) com listas `nodes`. Para processar um
+dos mapas da entrega pelo terminal:
 
 ```powershell
-.\.venv\Scripts\python.exe -m mapas.conversor
+.\.venv\Scripts\python.exe -m mapas.conversor "dados/bh.json"
 ```
 
 Para escolher outro arquivo:
 
 ```powershell
-.\.venv\Scripts\python.exe -m mapas.conversor "dados/outro_bairro.json"
+.\.venv\Scripts\python.exe -m mapas.conversor "dados/pedro_leopoldo.json"
 ```
+
+Sem argumento, o conversor procura `dados/bairro_teste.json`, usado no
+desenvolvimento. Como esse arquivo não é um dos três mapas previstos para a
+entrega, informe explicitamente o caminho do JSON desejado nos comandos acima.
 
 O carregamento verifica formato, IDs duplicados, coordenadas, listas de pontos e referências ausentes. GeoJSON não é aceito. Respostas com `remark` são rejeitadas, pois podem conter resultados parciais de uma consulta com falha. Relações e áreas não são convertidas. Em caso de falha, o terminal informa `Erro ao carregar mapa: ...`.
 
@@ -178,7 +293,7 @@ Para carregar os dados em outro módulo:
 ```python
 from mapas.conversor import carregar_mapa
 
-grafo, pontos, vias = carregar_mapa("dados/bairro_teste.json")
+grafo, pontos, vias = carregar_mapa("dados/bh.json")
 ```
 
 A função retorna uma tupla com três valores e não imprime. O chamador pode tratar `ValueError` para conteúdo inválido e `OSError` para problemas com o arquivo. `pontos` contém as coordenadas originais e `vias` contém as vias selecionadas para carros com seus atributos.
@@ -235,14 +350,50 @@ Referências das tags: [oneway](https://wiki.openstreetmap.org/wiki/Key:oneway),
 Para executar a suíte automatizada, na raiz do projeto:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest testes
+.\.venv\Scripts\python.exe -m pytest testes -q
 ```
 
-Os testes cobrem validação e conversão do mapa, regras para carros, estrutura do grafo, Dijkstra, visualização e comparação de resultados. A maioria utiliza dados pequenos criados nos próprios testes, sem depender dos JSONs locais. O teste `test_integracao_com_mapa_real`, em `testes/test_dijkstra.py`, utiliza `dados/bairro_teste.json` caso o arquivo esteja disponível; caso contrário, é ignorado.
+Os testes cobrem validação e conversão do mapa, regras para carros, estrutura do
+grafo, pontos temporários, Dijkstra, visualização, comparação de resultados e o
+estado da interface. A maioria utiliza dados pequenos criados nos próprios testes,
+sem depender dos JSONs locais. O teste `test_integracao_com_mapa_real`, em
+`testes/test_dijkstra.py`, utiliza `dados/bairro_teste.json` caso esteja disponível;
+caso contrário, é ignorado. Os testes de `test_app.py` simulam os cliques e não
+abrem um navegador.
+
+Para conferir apenas conversão, estrutura do grafo, localização e regras para carros:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest testes/test_conversor.py testes/test_grafo.py testes/test_localizacao.py testes/test_regras_carros.py -v
+```
+
+`PASSED` significa sucesso, `FAILED` indica falha e `SKIPPED` indica um teste
+ignorado com justificativa. Use `-v` no lugar de `-q` para listar os testes.
+
+## Medições de desempenho
+
+Com os mapas JSON salvos em `dados/`, execute:
+
+```powershell
+.\.venv\Scripts\python.exe benchmark_desempenho_rotas.py
+```
+
+O script percorre os arquivos `.json` de `dados/` e mede carregamento, preparação
+do índice, localização do clique, inserção dos pontos e cálculos de rotas. Usa um
+aquecimento, três repetições e até dois pares dirigidos alcançáveis por mapa,
+com semente fixa, apresentando medianas em milissegundos.
+
+Cada execução grava ou substitui `dados/resultados_desempenho_leve.csv`, que fica
+ignorado pelo Git. O arquivo `docs/resultados_desempenho.csv` é um registro de
+medições anteriores: não é atualizado por esse comando e pode se referir a mapas
+que não estão no repositório ou a versões diferentes dos dados. Os valores variam
+conforme o computador e o mapa. Essas medições não incluem a renderização no
+navegador nem o download das imagens de fundo; as medianas das etapas não devem
+ser somadas como um tempo total medido.
 
 ## Próximas etapas
 
-1. Implementar a consulta à Overpass API em `mapas/overpass.py`, incluindo limites de consulta e tratamento de falhas.
+1. Adicionar um módulo de consulta à Overpass API, incluindo limites de consulta e tratamento de falhas. Esse módulo ainda não existe na árvore atual.
 2. Ampliar a validação integrada da aplicação conforme novas funcionalidades forem adicionadas.
 
 Os mapas e a visualização devem manter a atribuição aos [colaboradores do OpenStreetMap](https://www.openstreetmap.org/copyright).

@@ -99,11 +99,6 @@ efetiva é a dos dados exportados do OpenStreetMap; o cálculo usa apenas as via
 presentes no arquivo e permitidas pelo perfil de carros. Os três arquivos usam
 o formato JSON bruto da Overpass, com `elements`, `node` e `way`.
 
-Os três nomes estão liberados no `.gitignore`. Ao enviar o projeto, inclua os
-JSONs no repositório ou no pacote entregue ao professor: liberar um arquivo no
-`.gitignore` não o adiciona automaticamente a um commit. Outros mapas locais,
-como `bairro_teste.json`, são arquivos de desenvolvimento e continuam ignorados.
-
 ## Executar no Windows (PowerShell)
 
 Abra a pasta do projeto no VS Code e use **Terminal → Novo Terminal**. Execute

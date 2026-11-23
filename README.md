@@ -4,11 +4,11 @@ Projeto acadêmico de Teoria dos Grafos desenvolvido em Python. A aplicação ut
 
 A versão atual carrega arquivos JSON locais exportados da Overpass, considera o sentido de circulação das vias e utiliza uma implementação própria do algoritmo de Dijkstra para encontrar a rota de menor distância e a rota de menor tempo estimado. A interface permite escolher origem e destino no mapa, visualizar o trajeto selecionado e comparar os resultados dos dois critérios.
 
-**Importante:** a consulta automática à Overpass API não foi implementada. Para
-a avaliação, o grupo vai disponibilizar mapas JSON já preparados de Belo Horizonte,
-Minas Gerais e Pedro Leopoldo em `dados/`. Com os arquivos da entrega, o professor
-poderá selecionar um mapa na interface sem precisar consultar a Overpass ou
-exportar dados manualmente.
+**Importante:** a consulta automática à Overpass API não foi implementada. O grupo
+já preparou três mapas JSON para a avaliação, salvos em `dados/`: Belo Horizonte,
+Pedro Leopoldo e um recorte conjunto de Belo Horizonte, Contagem, Nova Lima e
+Santa Luzia. Com esses arquivos, o professor pode selecionar um mapa na interface
+sem precisar consultar a Overpass ou exportar dados manualmente.
 
 ## Tecnologias
 
@@ -68,31 +68,41 @@ O grafo e o algoritmo de Dijkstra são implementações do grupo, sem biblioteca
 │   ├── localizacao.md         # Explicação da seleção e dos pontos temporários
 │   └── resultados_desempenho.csv # Registro de medições anteriores
 └── dados/
-    └── .gitkeep               # Mantém a pasta vazia no Git
+    ├── .gitkeep
+    ├── bh.json                # Belo Horizonte
+    ├── pl.json                # Pedro Leopoldo
+    └── metropolitana.json     # BH, Contagem, Nova Lima e Santa Luzia
 ```
 
 `dados/` é uma pasta de armazenamento, não um pacote Python; por isso não precisa
-de `__init__.py`. O `.gitignore` permite versionar os três nomes de mapas definidos
+de `__init__.py`. O `.gitignore` permite versionar os mapas de entrega definidos
 abaixo. Outros dados locais e resultados gerados continuam ignorados.
 
 ## Mapas de teste da entrega
 
-Os arquivos preparados pelo grupo deverão acompanhar o projeto com estes nomes:
+Os três arquivos já preparados pelo grupo são:
 
-| Arquivo | Região |
-|---|---|
-| `dados/bh.json` | Belo Horizonte |
-| `dados/mg.json` | Minas Gerais |
-| `dados/pedro_leopoldo.json` | Pedro Leopoldo |
+| Arquivo | Região | Tamanho aproximado do JSON |
+|---|---|---|
+| `dados/pl.json` | Pedro Leopoldo | 3,4 MB |
+| `dados/bh.json` | Belo Horizonte | 28,7 MB |
+| `dados/metropolitana.json` | Belo Horizonte, Contagem, Nova Lima e Santa Luzia no mesmo arquivo | 55,0 MB |
 
-A cobertura efetiva de cada mapa será a do recorte exportado pelo grupo. O nome
-do arquivo não garante que todos os municípios ou todas as vias da região estejam
-incluídos. Todos devem estar no formato JSON bruto da Overpass, com `elements`,
-`node` e `way`, incluindo os pontos referenciados pelas vias.
+Para o primeiro teste, selecione **`pl.json`**, o menor dos arquivos. Depois use
+`bh.json` para uma rede maior ou `metropolitana.json` para explorar a rede
+combinada dos quatro municípios. Os tamanhos acima correspondem aos arquivos
+atuais, em MB decimais; o grafo em memória ocupa mais espaço que o JSON em disco.
 
-Antes da entrega, o grupo deve adicionar os três arquivos a `dados/` e incluí-los
-no repositório ou no pacote enviado ao professor. As exceções no `.gitignore`
-apenas permitem sua inclusão; não criam nem baixam os mapas.
+O recorte conjunto substitui o plano de baixar MG inteiro. Ele não representa
+todos os municípios da Região Metropolitana de Belo Horizonte. A cobertura
+efetiva é a dos dados exportados do OpenStreetMap; o cálculo usa apenas as vias
+presentes no arquivo e permitidas pelo perfil de carros. Os três arquivos usam
+o formato JSON bruto da Overpass, com `elements`, `node` e `way`.
+
+Os três nomes estão liberados no `.gitignore`. Ao enviar o projeto, inclua os
+JSONs no repositório ou no pacote entregue ao professor: liberar um arquivo no
+`.gitignore` não o adiciona automaticamente a um commit. Outros mapas locais,
+como `bairro_teste.json`, são arquivos de desenvolvimento e continuam ignorados.
 
 ## Executar no Windows (PowerShell)
 
@@ -134,14 +144,14 @@ cálculos de grafo são locais.
 
 ### 2. Conferir os mapas fornecidos
 
-Confirme que os arquivos `bh.json`, `mg.json` e `pedro_leopoldo.json` estão em
-`dados/`, junto com a entrega do grupo. Eles aparecerão automaticamente no seletor
+Os mapas fornecidos são `dados/pl.json`, `dados/bh.json` e
+`dados/metropolitana.json`. Eles aparecem automaticamente no seletor
 **Arquivo** da barra lateral. Não é necessário exportar um novo mapa para testar
 esses arquivos.
 
-Se os três mapas estiverem ausentes, obtenha-os com o grupo ou siga a seção de
-exportação opcional abaixo para preparar outro JSON. O aplicativo só consegue
-usar os arquivos que realmente estiverem salvos em `dados/`.
+Se algum deles não estiver na cópia recebida, confira a pasta `dados/` e obtenha
+o arquivo com o grupo. O aplicativo só consegue usar os JSONs que realmente
+estiverem salvos nessa pasta.
 
 ### 3. Iniciar a interface
 
@@ -156,10 +166,10 @@ Mantenha o terminal aberto enquanto usa o sistema. Para encerrar, pressione
 `Ctrl+C` no terminal. Não execute `python app.py`: a interface deve ser iniciada
 pelo comando `streamlit run`.
 
-Selecione o mapa desejado em **Arquivo**. Para o primeiro teste, prefira o menor
-arquivo disponibilizado: o custo de carregar e desenhar a rede aumenta com a
-quantidade de vias. Uma seleção em Belo Horizonte não permite calcular uma rota
-até outra cidade se as conexões necessárias estiverem fora desse JSON.
+Selecione **`pl.json`** em **Arquivo** para começar. O custo de carregar e desenhar
+a rede aumenta com a quantidade de vias. Para rotas entre os quatro municípios
+do recorte combinado, selecione **`metropolitana.json`**. Usar apenas `bh.json`
+não disponibiliza automaticamente as redes completas das cidades vizinhas.
 
 Nas próximas execuções, com o ambiente e os mapas já preparados, basta repetir
 o comando acima. Se as dependências mudarem, repita também a instalação.
@@ -169,23 +179,57 @@ o comando acima. Se as dependências mudarem, repita também a instalação.
 Esta etapa é somente para adicionar novos recortes ou substituir um dos mapas
 da entrega. Não faz parte do procedimento normal de teste do professor.
 
-1. Acesse [Overpass Turbo](https://overpass-turbo.eu/) e selecione uma região no mapa.
-2. Utilize uma consulta para vias no retângulo visível, por exemplo:
+1. Acesse [Overpass Turbo](https://overpass-turbo.eu/).
+2. Para consultar Belo Horizonte pelo limite municipal, sem depender do zoom:
 
    ```text
-   [out:json][timeout:60];
-   way["highway"]({{bbox}});
+   [out:json][timeout:300];
+   {{geocodeArea:Belo Horizonte, Minas Gerais, Brasil}}->.cidade;
+   way["highway"](area.cidade);
    out body;
    >;
    out skel qt;
    ```
 
 3. Execute a consulta e, em **Export**, baixe os dados brutos (*raw OSM data*) em JSON, não GeoJSON.
-4. Salve o arquivo na pasta `dados/`, por exemplo `dados/bairro_teste.json`.
+4. Salve como `dados/bh.json`. Para Pedro Leopoldo, troque o nome da área por
+   `Pedro Leopoldo, Minas Gerais, Brasil` e salve como `dados/pl.json`.
+
+Para baixar os quatro municípios em um único JSON, use esta consulta:
+
+```text
+[out:json][timeout:300];
+
+{{geocodeArea:Belo Horizonte, Minas Gerais, Brasil}}->.bh;
+{{geocodeArea:Contagem, Minas Gerais, Brasil}}->.contagem;
+{{geocodeArea:Nova Lima, Minas Gerais, Brasil}}->.nova_lima;
+{{geocodeArea:Santa Luzia, Minas Gerais, Brasil}}->.santa_luzia;
+
+(
+  way["highway"](area.bh);
+  way["highway"](area.contagem);
+  way["highway"](area.nova_lima);
+  way["highway"](area.santa_luzia);
+);
+
+out body;
+>;
+out skel qt;
+```
+
+Exporte os dados brutos como `dados/metropolitana.json`. A união elimina
+repetições de uma mesma via selecionada por mais de um município. Os pontos das
+vias são retornados completos, inclusive onde algum trecho ultrapassa a divisa.
+O uso de `geocodeArea` é específico do Overpass Turbo.
+
+As cidades devem estar juntas nesse arquivo para o cálculo usar a rede combinada.
+O sistema não une automaticamente vários JSONs selecionados separadamente.
+Rotas que precisem sair do recorte por outros municípios podem continuar sem
+caminho. Se o servidor informar erro ou resultado parcial, não use esse download.
 
 O nome de um mapa adicional pode ser escolhido livremente, desde que termine em
 `.json`. Para incluí-lo pelo Git, adicione também uma exceção específica no
-`.gitignore`; os três nomes da entrega já estão liberados.
+`.gitignore`; os nomes dos mapas de entrega acima já estão liberados.
 
 ### Problemas comuns ao iniciar
 
@@ -279,11 +323,17 @@ dos mapas da entrega pelo terminal:
 Para escolher outro arquivo:
 
 ```powershell
-.\.venv\Scripts\python.exe -m mapas.conversor "dados/pedro_leopoldo.json"
+.\.venv\Scripts\python.exe -m mapas.conversor "dados/pl.json"
+```
+
+Para o recorte combinado:
+
+```powershell
+.\.venv\Scripts\python.exe -m mapas.conversor "dados/metropolitana.json"
 ```
 
 Sem argumento, o conversor procura `dados/bairro_teste.json`, usado no
-desenvolvimento. Como esse arquivo não é um dos três mapas previstos para a
+desenvolvimento. Como esse arquivo não é um dos três mapas fornecidos para a
 entrega, informe explicitamente o caminho do JSON desejado nos comandos acima.
 
 O carregamento verifica formato, IDs duplicados, coordenadas, listas de pontos e referências ausentes. GeoJSON não é aceito. Respostas com `remark` são rejeitadas, pois podem conter resultados parciais de uma consulta com falha. Relações e áreas não são convertidas. Em caso de falha, o terminal informa `Erro ao carregar mapa: ...`.

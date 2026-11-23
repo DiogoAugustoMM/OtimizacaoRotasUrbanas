@@ -19,8 +19,8 @@ htmlcov/
 dados/*
 !dados/.gitkeep
 !dados/bh.json
-!dados/mg.json
-!dados/pedro_leopoldo.json
+!dados/metropolitana.json
+!dados/pl.json
 
 # Arquivos do sistema
 .DS_Store
